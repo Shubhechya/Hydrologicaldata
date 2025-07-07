@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Nepal Geo-Climate & Spatial Analysis Portal - Map</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: Arial, sans-serif;
+      overflow: hidden; /* Prevent body scroll, map and sidebar manage their own scroll */
+      background-color: #f0f2f5; /* Light grey background for consistency */
+    }
+
+    #container {
+      display: flex;
+      height: 100%; /* Take full viewport height */
+    }
+
+    #sidebar {
+      width: 320px; /* Consistent sidebar width */
+      background-color: #f5f5f5; /* Light background for the sidebar */
+      padding: 15px;
+      box-shadow: 2px 0 5px rgba(0,0,0,0.1); /* Shadow on the right side */
+      overflow-y: auto; /* Make sidebar scrollable */
+      flex-shrink: 0; /* Prevent sidebar from shrinking */
+    }
+    #sidebar h2 {
+      margin-top: 0;
+      color: #003366; /* Dark blue heading */
+      font-size: 1.4em;
+      border-bottom: 1px solid rgba(0,0,0,0.1); /* Subtle separator */
+      padding-bottom: 8px;
+      margin-bottom: 15px;
+    }
+    #sidebar .section {
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 1px dashed rgba(0,0,0,0.05); /* Subtle separator */
+    }
+    #sidebar .section:last-child {
+      border-bottom: none; /* No border for the last section */
+    }
+    #sidebar label {
+      color: #4a5568; /* Darker text for labels */
+      margin: 8px 0;
+      display: flex; /* For checkbox alignment */
+      align-items: center;
+    }
+    #sidebar select, #sidebar input[type=radio] {
+      background-color: white; /* White input background */
+      color: #2d3748;
+      border: 1px solid #cbd5e0;
+      padding: 6px;
+      border-radius: 4px;
+      width: calc(100% - 12px); /* Adjust width for padding */
+      margin-top: 5px;
+    }
+    #sidebar select {
+        appearance: none; /* Remove default select arrow */
+        background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%20viewBox%3D%220%200%20292.4%20292.4%22%3E%3Cpath%20fill%3D%22%234a5568%22%20d%3D%22M287%20197.3l-11.4%2011.4c-1.6%201.6-3.6%202.4-5.7%202.4s-4.1-.8-5.7-2.4L146.2%2090.9%2031.2%20208.7c-1.6%201.6-3.6%202.4-5.7%202.4s-4.1-.8-5.7-2.4L8.4%20197.3c-3.1-3.1-3.1-8.2%200-11.4L140.5%203.4c3.1-3.1%208.2-3.1%2011.4%200l132.1%20182.5c3.1%203.1%203.1%208.2%200%2011.4z%22%2F%3E%3C%2Fsvg%3E'); /* Darker arrow */
+        background-repeat: no-repeat;
+        background-position: right 8px center;
+        background-size: 12px;
+        padding-right: 30px; /* Make space for the custom arrow */
+    }
+    #sidebar input[type=checkbox] {
+        margin-right: 8px;
+    }
+
+    /* Button Styling for Sidebar */
+    .sidebar-button {
+      width: 100%;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 6px; /* Slightly more rounded */
+      cursor: pointer;
+      font-size: 0.95em;
+      margin-top: 10px; /* More space between buttons */
+      transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      color: white; /* Default text color for light sidebar buttons */
+      background-color: #007bff; /* Default blue for buttons */
+    }
+    .sidebar-button:hover {
+        background-color: #0056b3;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        transform: translateY(-1px);
+    }
+    /* Specific button colors for spatial operations, etc. */
+    .sidebar-button.primary { background-color: #007bff; }
+    .sidebar-button.primary:hover { background-color: #0056b3; }
+    .sidebar-button.info { background-color: #17a2b8; }
+    .sidebar-button.info:hover { background-color: #138496; }
+    .sidebar-button.success { background-color: #28a745; }
+    .sidebar-button.success:hover { background-color: #218838; }
+    .sidebar-button.warning { background-color: #ffc107; color: #343a40; } /* Dark text for warning */
+    .sidebar-button.warning:hover { background-color: #e0a800; }
+    .sidebar-button.danger { background-color: #dc3545; }
+    .sidebar-button.danger:hover { background-color: #c82333; }
+
+    /* Unique styling for Spatial Operations section */
+    .spatial-operations-section {
+      background: linear-gradient(135deg, #4c51bf 0%, #667eea 100%); /* Indigo gradient */
+      color: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+      margin-bottom: 20px; /* Space from other sections */
+      text-align: center;
+    }
+    .spatial-operations-section h2 {
+      color: white; /* Ensure heading is white on dark background */
+      margin-bottom: 15px;
+      font-size: 1.8em; /* Larger heading */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px; /* Space between icon and text */
+      border-bottom: none; /* No border for this heading */
+      padding-bottom: 0;
+    }
+    .spatial-operations-section h2 svg {
+        width: 30px;
+        height: 30px;
+        fill: currentColor; /* Inherit color from text */
+    }
+    .spatial-operations-section .sidebar-button {
+      background-color: rgba(255, 255, 255, 0.2); /* Semi-transparent white buttons */
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      font-weight: bold;
+      margin-bottom: 10px; /* Space between buttons */
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+    .spatial-operations-section .sidebar-button:hover {
+      background-color: rgba(255, 255, 255, 0.3);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      transform: translateY(-2px);
+    }
+
+    #map {
+      flex: 1; /* Map takes remaining space */
+      height: 100%;
+      background-color: #eee;
+    }
+
+    /* Legend Styling (remains on map, but matches new theme) */
+    .info.legend {
+      background: rgba(255, 255, 255, 0.9); /* Slightly transparent white */
+      padding: 15px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      font-size: 1.1em;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1); /* Subtle shadow for legend */
+    }
+    .info.legend h4 {
+        margin-top: 0;
+        margin-bottom: 10px;
+        font-size: 1.2em;
+    }
+    .info.legend div {
+      margin: 8px 0;
+      display: flex;
+      align-items: center;
+    }
+    .info.legend span {
+      display: inline-block;
+      width: 25px;
+      height: 15px;
+      margin-right: 10px;
+      border-radius: 3px;
+    }
+
+    /* Custom message box styling */
+    .message-box-overlay {
+        position: fixed;
+        inset: 0;
+        background-color: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+    }
+    .message-box-content {
+        background-color: white;
+        padding: 25px;
+        border-radius: 8px;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        max-width: 400px;
+        width: 90%;
+        text-align: center;
+    }
+    .message-box-content button {
+        margin-top: 15px;
+        padding: 8px 20px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+    }
+    .message-box-content button:hover {
+        background-color: #0056b3;
+    }
+
+    /* Loading Overlay Styling */
+    #loadingOverlay {
+        position: fixed;
+        inset: 0;
+        background-color: rgba(0, 0, 0, 0.75);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        color: white;
+    }
+    #loadingOverlay .spinner {
+        border: 4px solid rgba(255, 255, 255, 0.3);
+        border-top: 4px solid #3498db;
+        border-radius: 50%;
+        width: 50px;
+        height: 50px;
+        animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+      #container {
+        flex-direction: column;
+      }
+      #sidebar {
+        width: 100%;
+        height: auto; /* Allow sidebar to take natural height */
+        max-height: 50vh; /* Limit height on small screens to not push map too far */
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1); /* Shadow on bottom */
+      }
+      #map {
+        height: 50vh; /* Map takes remaining height */
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <div id="sidebar">
+      <h2>Nepal Geo-Climate & Spatial Analysis Portal</h2>
+      <p style="font-size: 0.9em; color: #666; margin-bottom: 20px;">Explore hydrological data and perform spatial analysis for Nepal.</p>
+
+      <div class="section">
+        <h2>Layers</h2>
+        <label><input type="checkbox" id="toggleRiver" checked> River Networks</label>
+        <label><input type="checkbox" id="toggleStations" checked> All Stations</label>
+      </div>
+
+      <div class="section">
+        <h2>Base maps</h2>
+        <label><input type="radio" name="basemap" value="osm" checked> OpenStreetMap</label>
+        <label><input type="radio" name="basemap" value="satellite"> Satellite</label>
+        <label><input type="radio" name="basemap" value="topo"> Topographic</label>
+      </div>
+
+      <div class="section">
+        <h2>Select District</h2>
+        <select id="districtSelect">
+          <option value="">-- Select District --</option>
+        </select>
+      </div>
+      
+      <div class="section">
+        <label for="stationDropdown">Select Station</label>
+        <select id="stationDropdown">
+          <option value="">-- Select Station --</option>
+        </select>
+      </div>
+      
+      <div class="section">
+        <h2>Precipitation Analysis</h2>
+        <label for="yearSelect">Year:</label>
+        <select id="yearSelect">
+          <option value ="2020">2020</option>
+          <option value="2021">2021</option>
+          <option value="2022">2022</option>
+          <option value="2023">2023</option>
+          <option value="2024">2024</option>
+        </select>
+        <label for="monthSelect">Month:</label>
+        <select id="monthSelect">
+          <option value="1">January</option>
+          <option value="2">February</option>
+          <option value="3">March</option>
+          <option value="4">April</option>
+          <option value="5">May</option>
+          <option value="6">June</option>
+          <option value="7">July</option>
+          <option value="8">August</option>
+          <option value="9">September</option>
+          <option value="10">October</option>
+          <option value="11">November</option>
+          <option value="12">December</option>
+        </select>
+        <button id="analyzePrecipBtn" class="sidebar-button primary">Show Precipitation Map</button>
+      </div>
+
+      <div class="section spatial-operations-section">
+        <h2>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.22.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.93-2.5l-2.65-2.65c-.2-.2-.45-.29-.7-.29s-.5.09-.7.29L9.07 17.93c-1.39-1.39-2.34-3.09-2.73-4.93H21c-.46 2.06-1.57 3.8-3.07 5.06zM12 4.07c3.95.49 7 3.85 7 7.93 0 .62-.08 1.22-.21 1.79L15 9V8c0-1.1-.9-2-2-2V4.07zm-6.93 2.5L9.07 9.07c.2.2.45.29.7.29s.5-.09.7-.29L14.93 6.07c1.39 1.39 2.34 3.09 2.73 4.93H3c.46-2.06 1.57-3.8 3.07-5.06z"/>
+          </svg>
+          Spatial Operations
+        </h2>
+        <button id="bufferBtn" class="sidebar-button">Buffer High Rain Stations</button>
+        <button id="intersectBtn" class="sidebar-button">Intersect Districts</button>
+        <button id="pointsInPolygonBtn" class="sidebar-button">Stations in Selected District</button>
+        <button id="interpolateBtn" class="sidebar-button">Interpolate Precipitation (IDW)</button>
+        <button id="clearSpatialResultsBtn" class="sidebar-button">Clear Spatial Results</button>
+      </div>
+
+      <div class="section">
+        <h2>About This Portal</h2>
+        <p>This tool displays river networks, districts, climate stations and monthly precipitation data of district 2020, 2021, 2022, 2023 & 2024.</p>
+      </div>
+    </div>
+
+    <div id="map"></div>
+  </div>
+
+  <!-- Loading Overlay (hidden by default) -->
+  <div id="loadingOverlay" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-content-center z-[10000] hidden">
+    <div class="flex flex-col items-center text-white">
+        <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500"></div>
+        <p class="mt-4 text-lg">Loading data...</p>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/static/map.js"></script>
+</body>
+</html>
